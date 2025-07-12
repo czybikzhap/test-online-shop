@@ -24,6 +24,6 @@ class Order extends Model
 
     public function totalPrice(): float
     {
-        return $this->items->sum(fn($item) => $item->price * $item->quantity);
+        return round($this->items->sum(fn($item) => $item->price * $item->quantity), 2);
     }
 }

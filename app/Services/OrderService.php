@@ -101,8 +101,8 @@ class OrderService
                 'data' => [
                     'order_id' => $approveData->order->id,
                     'order_number' => $approveData->order->number,
-                    'total_paid' => $approveData->totalPrice,
-                    'new_balance' => $approveData->user->balance,
+                    'total_paid' => round($approveData->totalPrice, 2),
+                    'new_balance' => round($approveData->user->balance, 2),
                     'status' => $approveData->order->status
                 ]
             ];
