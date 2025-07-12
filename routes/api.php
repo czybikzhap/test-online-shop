@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\OrderController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\CatalogController;
 
@@ -13,3 +14,4 @@ use App\Http\Controllers\Api\CatalogController;
 */
 
 Route::get('/catalog', [CatalogController::class, 'index']);
+Route::post('/create-order', [OrderController::class, 'createOrder']);
