@@ -8,7 +8,7 @@ class Order extends Model
 {
     protected $fillable = ['number',
         'status',
-        'customer_id'
+        'user_id'
     ];
 
     public function user()
@@ -18,7 +18,7 @@ class Order extends Model
 
     public function items()
     {
-        return $this->hasMany(OrderItem::class);
+        return $this->hasMany(OrderProduct::class);
     }
 
     public function totalPrice(): float

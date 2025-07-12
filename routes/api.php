@@ -1,0 +1,15 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\CatalogController;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| API эндпоинты для онлайн-магазина
+|
+*/
+
+Route::get('/catalog', [CatalogController::class, 'index']);

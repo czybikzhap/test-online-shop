@@ -7,7 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class Product extends Model
 {
-    protected $fillable = ['name',
+    use HasFactory;
+
+    protected $fillable = [
+        'name',
         'description',
         'price',
         'stock'
@@ -15,6 +18,6 @@ class Product extends Model
 
     public function orderItems()
     {
-        return $this->hasMany(OrderItem::class);
+        return $this->hasMany(OrderProduct::class);
     }
 }
