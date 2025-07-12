@@ -15,3 +15,4 @@ use App\Http\Controllers\Api\CatalogController;
 
 Route::get('/catalog', [CatalogController::class, 'index']);
 Route::post('/create-order', [OrderController::class, 'createOrder']);
+Route::post('/approve-order', [OrderController::class, 'approveOrder']);
