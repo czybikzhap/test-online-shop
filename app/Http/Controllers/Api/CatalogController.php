@@ -10,13 +10,11 @@ class CatalogController extends Controller
 {
     public function index(): JsonResponse
     {
-        $products = Product::select('id', 'name', 'description', 'price', 'stock')
-            ->where('stock', '>', 0)
-            ->get();
+        $products = Product::available()->get();
 
         return response()->json([
             'success' => true,
             'data' => $products
         ]);
     }
-} 
+}

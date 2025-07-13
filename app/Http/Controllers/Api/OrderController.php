@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ApproveOrderRequest;
+use App\Http\Requests\CreateOrderRequest;
 use App\Models\Order;
 use App\DTOs\CreateOrderDTO;
 use App\DTOs\ApproveOrderDTO;
@@ -13,7 +15,7 @@ use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
-    public function createOrder(Request $request): JsonResponse
+    public function createOrder(CreateOrderRequest $request): JsonResponse
     {
         try {
             $orderData = CreateOrderDTO::fromArray($request->all());
@@ -37,16 +39,13 @@ class OrderController extends Controller
         }
     }
 
-    public function approveOrder(Request $request, Order $order): JsonResponse
+
+    public function approveOrder(ApproveOrderRequest $request): JsonResponse
     {
         try {
-            // Отладочная информация
-            if (!$order) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Заказ не найден'
-                ], 404);
-            }
+            $orderId = $request->validated('order_id');
+
+            $order = Order::findOrFail($orderId);
 
             $approveData = ApproveOrderDTO::fromOrder($order);
             $orderService = new OrderService();
@@ -55,42 +54,11 @@ class OrderController extends Controller
 
             return response()->json($result);
 
-        } catch (\Exception $e) {
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ошибка при подтверждении заказа: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function approveOrderByBody(Request $request): JsonResponse
-    {
-        try {
-            $orderId = $request->input('order_id');
-            
-            if (!$orderId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'ID заказа не указан'
-                ], 400);
-            }
-
-            $order = Order::find($orderId);
-            
-            if (!$order) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Заказ не найден'
-                ], 404);
-            }
-
-            $approveData = ApproveOrderDTO::fromOrder($order);
-            $orderService = new OrderService();
-
-            $result = $orderService->approveOrder($approveData);
-
-            return response()->json($result);
-
+                'message' => 'Заказ не найден'
+            ], 404);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
