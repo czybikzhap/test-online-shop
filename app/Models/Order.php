@@ -12,6 +12,21 @@ class Order extends Model
         'user_id'
     ];
 
+
+    public static function createDraft(int $userId): self
+    {
+        return static::create([
+            'number' => static::generateOrderNumber(),
+            'status' => 'draft',
+            'user_id' => $userId,
+        ]);
+    }
+
+    protected static function generateOrderNumber(): string
+    {
+        return 'ORD-' . now()->timestamp;
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

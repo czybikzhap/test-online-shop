@@ -4,9 +4,14 @@ namespace App\Services;
 
 use App\DTOs\CreateOrderDTO;
 use App\DTOs\ApproveOrderDTO;
+use App\Exceptions\InsufficientBalanceException;
+use App\Exceptions\NotEnoughStockException;
+use App\Exceptions\OrderStatusException;
+use App\Exceptions\ProductNotFoundException;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Exception;
 
@@ -19,20 +24,14 @@ class OrderService
         DB::beginTransaction();
 
         try {
-            $order = $this->createOrderRecord($orderData->userId);
+            $order = Order::createDraft($orderData->userId);
             $totalPrice = $this->processOrderItems($order, $orderData->items);
 
             DB::commit();
 
             return [
-                'success' => true,
-                'message' => 'Заказ успешно создан',
-                'data' => [
-                    'order_id' => $order->id,
-                    'order_number' => $order->number,
-                    'total_price' => round($totalPrice, 2),
-                    'status' => $order->status
-                ]
+                'order' => $order,
+                'total_price' => $totalPrice,
             ];
 
         } catch (Exception $e) {
@@ -43,88 +42,88 @@ class OrderService
 
     private function validateStockAvailability(array $items): void
     {
-        foreach ($items as $item) {
-            $product = Product::find($item->productId);
-
-            if ($product->stock < $item->quantity) {
-                throw new Exception("Недостаточно товара '{$product->name}' на складе. Доступно: {$product->stock}");
-            }
-        }
+        $this->getValidatedProductsByItems($items);
     }
 
-    private function createOrderRecord(int $userId): Order
-    {
-        return Order::create([
-            'number' => 'ORD-' . now()->timestamp,
-            'status' => 'draft',
-            'user_id' => $userId,
-        ]);
-    }
 
     private function processOrderItems(Order $order, array $items): float
     {
-        $totalPrice = 0;
+        return DB::transaction(function () use ($order, $items) {
+            $products = $this->getValidatedProductsByItems($items);
 
-        foreach ($items as $item) {
-            $product = Product::find($item->productId);
+            $totalPrice = 0;
+            $itemsToCreate = [];
+            $stockUpdates = [];
 
-            $product->decrement('stock', $item->quantity);
+            foreach ($items as $item) {
+                $product = $products->get($item->productId);
 
-            $order->items()->create([
-                'product_id' => $product->id,
-                'quantity' => $item->quantity,
-                'price' => $product->price,
-            ]);
+                $totalPrice += $product->price * $item->quantity;
 
-            $totalPrice += $product->price * $item->quantity;
-        }
+                $itemsToCreate[] = [
+                    'order_id' => $order->id,
+                    'product_id' => $product->id,
+                    'quantity' => $item->quantity,
+                    'price' => $product->price,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
 
-        return $totalPrice;
+                $stockUpdates[] = [
+                    'id' => $product->id,
+                    'stock' => $product->stock - $item->quantity,
+                ];
+            }
+
+            if (!empty($itemsToCreate)) {
+                $order->items()->insert($itemsToCreate);
+            }
+
+            if (!empty($stockUpdates)) {
+                Product::upsert($stockUpdates, ['id'], ['stock']);
+            }
+
+            return $totalPrice;
+        });
     }
 
     public function approveOrder(ApproveOrderDTO $approveData): array
     {
-        $this->validateOrderStatus($approveData->order);
-        $this->validateUserBalance($approveData->user, $approveData->totalPrice);
-
         DB::beginTransaction();
 
         try {
+            $this->validateOrderStatus($approveData->order);
+            $this->validateUserBalance($approveData->user, $approveData->totalPrice);
+
             $this->processPayment($approveData->user, $approveData->totalPrice);
             $this->updateOrderStatus($approveData->order);
 
             DB::commit();
 
             return [
-                'success' => true,
-                'message' => 'Заказ успешно подтвержден',
-                'data' => [
-                    'order_id' => $approveData->order->id,
-                    'order_number' => $approveData->order->number,
-                    'total_paid' => round($approveData->totalPrice, 2),
-                    'new_balance' => round($approveData->user->balance, 2),
-                    'status' => $approveData->order->status
-                ]
+                'order' => $approveData->order,
+                'total_paid' => $approveData->totalPrice,
+                'new_balance' => $approveData->user->balance,
             ];
 
-        } catch (Exception $e) {
+        } catch (Exception $exception) {
             DB::rollBack();
-            throw $e;
+            throw $exception;
         }
     }
 
     private function validateOrderStatus(Order $order): void
     {
         if ($order->status !== 'draft') {
-            throw new Exception('Заказ уже подтвержден или отменен');
+            throw new OrderStatusException($order);
         }
     }
 
     private function validateUserBalance(User $user, float $totalPrice): void
     {
-        if ($user->balance < $totalPrice) {
-            throw new Exception("Недостаточно средств на балансе. Требуется: {$totalPrice}, доступно: {$user->balance}");
-        }
+      if ($user->balance < $totalPrice) {
+              throw new InsufficientBalanceException($user, $totalPrice);
+          }
     }
 
     private function processPayment(User $user, float $totalPrice): void
@@ -135,5 +134,27 @@ class OrderService
     private function updateOrderStatus(Order $order): void
     {
         $order->update(['status' => 'approved']);
+    }
+
+
+    private function getValidatedProductsByItems(array $items): Collection
+    {
+        $productIds = collect($items)->pluck('productId')->unique()->toArray();
+
+        $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
+
+        foreach ($items as $item) {
+            $product = $products->get($item->productId);
+
+            if (!$product) {
+                throw new ProductNotFoundException($item->productId);
+            }
+
+            if ($product->stock < $item->quantity) {
+                throw new NotEnoughStockException($product->name, $product->stock, $item->quantity);
+            }
+        }
+
+        return $products;
     }
 }

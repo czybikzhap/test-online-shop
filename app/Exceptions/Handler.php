@@ -28,6 +28,13 @@ class Handler extends ExceptionHandler
     public function render($request, Throwable $exception)
     {
         if ($request->expectsJson()) {
+            if ($exception instanceof ApiException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $exception->getMessage(),
+                ], $exception->getStatus());
+            }
+
             if ($exception instanceof ValidationException) {
                 return response()->json([
                     'success' => false,
@@ -48,6 +55,16 @@ class Handler extends ExceptionHandler
                     'success' => false,
                     'message' => 'Маршрут не найден',
                 ], 404);
+            }
+
+            if ($exception instanceof OrderStatusException ||
+                $exception instanceof InsufficientBalanceException ||
+                $exception instanceof NotEnoughStockException ||
+                $exception instanceof ProductNotFoundException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $exception->getMessage(),
+                ], 400);
             }
 
             return response()->json([
