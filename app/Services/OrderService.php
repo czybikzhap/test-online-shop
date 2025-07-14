@@ -7,7 +7,6 @@ use App\DTOs\ApproveOrderDTO;
 use App\Exceptions\InsufficientBalanceException;
 use App\Exceptions\NotEnoughStockException;
 use App\Exceptions\OrderStatusException;
-use App\Exceptions\ProductNotFoundException;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
@@ -80,7 +79,10 @@ class OrderService
             }
 
             if (!empty($stockUpdates)) {
-                Product::upsert($stockUpdates, ['id'], ['stock']);
+                foreach ($stockUpdates as $update) {
+                    Product::where('id', $update['id'])
+                        ->update(['stock' => $update['stock']]);
+                }
             }
 
             return $totalPrice;
@@ -146,12 +148,12 @@ class OrderService
         foreach ($items as $item) {
             $product = $products->get($item->productId);
 
-            if (!$product) {
-                throw new ProductNotFoundException($item->productId);
-            }
-
             if ($product->stock < $item->quantity) {
-                throw new NotEnoughStockException($product->name, $product->stock, $item->quantity);
+                throw new NotEnoughStockException(
+                    $product->name,
+                    $product->stock,
+                    $item->quantity
+                );
             }
         }
 

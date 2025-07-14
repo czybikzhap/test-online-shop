@@ -14,11 +14,12 @@ use Illuminate\Http\JsonResponse;
 
 class OrderController extends Controller
 {
-    public function __construct(private OrderService $orderService) {}
+    public function __construct(private OrderService $orderService){}
 
     public function createOrder(CreateOrderRequest $request): JsonResponse
     {
-        $orderData = CreateOrderDTO::fromArray($request->validated());
+        $orderData = CreateOrderDTO::fromArray($request->all());
+
         $result = $this->orderService->createOrder($orderData);
 
         return (new OrderResource($result['order']))
@@ -36,7 +37,6 @@ class OrderController extends Controller
         $orderId = $request->validated()['order_id'];
 
         $order = Order::findOrFail($orderId);
-        print_r($order);die;
 
         $approveData = ApproveOrderDTO::fromOrder($order);
         $result = $this->orderService->approveOrder($approveData);

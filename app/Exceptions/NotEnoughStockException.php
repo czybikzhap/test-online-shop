@@ -6,8 +6,15 @@ class NotEnoughStockException extends ApiException
 {
     public function __construct(string $productName, int $available, int $requested)
     {
-        $message = "Недостаточно товара '{$productName}' на складе. Запрошено: {$requested}, доступно: {$available}";
-
-        parent::__construct($message, 409);
+        parent::__construct(
+            "Недостаточно товара на складе",
+            409,
+            'insufficient_stock',
+            [
+                'product_name' => $productName,
+                'requested' => $requested,
+                'available' => $available,
+            ]
+        );
     }
 }

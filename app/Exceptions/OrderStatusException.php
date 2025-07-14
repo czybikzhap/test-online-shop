@@ -8,13 +8,20 @@ class OrderStatusException extends ApiException
 {
     public function __construct(Order $order = null)
     {
-        $message = 'Заказ уже подтвержден или отменен';
-
+        $details = [];
         if ($order) {
-            $message .= " (Order #{$order->number})";
+            $details = [
+                'order_id' => $order->id,
+                'order_number' => $order->number,
+                'current_status' => $order->status,
+            ];
         }
 
-        parent::__construct($message, 409);
+        parent::__construct(
+            'Заказ уже подтвержден или отменен',
+            409,
+            'invalid_order_status',
+            $details
+        );
     }
-
 }

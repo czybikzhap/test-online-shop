@@ -3,6 +3,7 @@
 namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\JsonResponse;
 use Throwable;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -10,70 +11,63 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class Handler extends ExceptionHandler
 {
-    protected $levels = [];
-
-    protected $dontReport = [];
-
-    protected $dontFlash = [
-        'current_password',
-        'password',
-        'password_confirmation',
+    protected $dontReport = [
+        ApiException::class,
     ];
 
-    public function register(): void
-    {
-        //
-    }
-
-    public function render($request, Throwable $exception)
+    public function render($request, Throwable $e)
     {
         if ($request->expectsJson()) {
-            if ($exception instanceof ApiException) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $exception->getMessage(),
-                ], $exception->getStatus());
-            }
-
-            if ($exception instanceof ValidationException) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ошибка валидации',
-                    'errors' => $exception->errors(),
-                ], 422);
-            }
-
-            if ($exception instanceof ModelNotFoundException) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ресурс не найден',
-                ], 404);
-            }
-
-            if ($exception instanceof NotFoundHttpException) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Маршрут не найден',
-                ], 404);
-            }
-
-            if ($exception instanceof OrderStatusException ||
-                $exception instanceof InsufficientBalanceException ||
-                $exception instanceof NotEnoughStockException ||
-                $exception instanceof ProductNotFoundException) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $exception->getMessage(),
-                ], 400);
-            }
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Внутренняя ошибка сервера',
-                'error' => config('app.debug') ? $exception->getMessage() : null,
-            ], 500);
+            return $this->handleApiException($e);
         }
 
-        return parent::render($request, $exception);
+        return parent::render($request, $e);
+    }
+
+    protected function handleApiException(Throwable $e): JsonResponse
+    {
+        if ($e instanceof ApiException) {
+            return $e->render();
+        }
+
+        if ($e instanceof ValidationException) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ошибка валидации',
+                'error' => [
+                    'code' => 'validation_failed',
+                    'status' => 422,
+                    'details' => $e->errors(),
+                ]
+            ], 422);
+        }
+
+
+        if ($e instanceof NotFoundHttpException) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ресурс не найден',
+                'error' => [
+                    'code' => 'route_not_found',
+                    'status' => 404,
+                ]
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Внутренняя ошибка сервера',
+            'error' => config('app.debug') ? [
+                'code' => 'server_error',
+                'status' => 500,
+                'message' => $e->getMessage(),
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ] : [
+                'code' => 'server_error',
+                'status' => 500,
+            ]
+        ], 500);
     }
 }

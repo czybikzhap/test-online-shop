@@ -4,7 +4,6 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Throwable;
-use App\Exceptions\ApiException;
 use Illuminate\Http\Request;
 
 class HandleApiExceptions
@@ -13,11 +12,6 @@ class HandleApiExceptions
     {
         try {
             return $next($request);
-        } catch (ApiException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], $e->getStatus());
         } catch (Throwable $e) {
             if ($request->expectsJson()) {
                 return response()->json([
